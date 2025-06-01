@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributeur Automatique</title>
+    <style>
+        body {
+            background: #f2f2f2;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .machine {
+            background: #222;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+            padding: 32px 40px;
+            width: 400px;
+            color: #fff;
+        }
+        .machine h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        .solde {
+            background: #333;
+            border-radius: 10px;
+            padding: 10px 0;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+        .pieces {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .piece-btn {
+            background: #ffd700;
+            color: #222;
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            font-weight: bold;
+            font-size: 1em;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: transform 0.1s;
+        }
+        .piece-btn:hover {
+            transform: scale(1.1);
+        }
+        .produits {
+            margin-bottom: 20px;
+        }
+        .produit {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #333;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+        }
+        .produit button {
+            background: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .produit button:disabled {
+            background: #888;
+            cursor: not-allowed;
+        }
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .actions button {
+            background: #2196f3;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .actions button.cancel {
+            background: #e53935;
+        }
+        .panier {
+            background: #333;
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .panier h3 {
+            margin: 0 0 8px 0;
+            font-size: 1em;
+        }
+        .panier ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .panier li {
+            font-size: 0.95em;
+            margin-bottom: 4px;
+        }
+        .message {
+            text-align: center;
+            margin-top: 10px;
+            color: #ffd700;
+            min-height: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="machine">
+        <h1>Distributeur</h1>
+        <div class="solde" id="solde">Solde : 0.00 MAD</div>
+        <div class="pieces">
+            <button class="piece-btn" onclick="insererPiece(0.5)">0.5</button>
+            <button class="piece-btn" onclick="insererPiece(1)">1</button>
+            <button class="piece-btn" onclick="insererPiece(2)">2</button>
+            <button class="piece-btn" onclick="insererPiece(5)">5</button>
+            <button class="piece-btn" onclick="insererPiece(10)">10</button>
+        </div>
+        <div class="produits" id="produits"></div>
+        <div class="actions">
+            <button onclick="rendreMonnaie()">Rendre monnaie</button>
+            <button class="cancel" onclick="annulerTransaction()">Annuler</button>
+        </div>
+        <div class="panier" id="panier">
+            <h3>Panier</h3>
+            <ul id="panier-list"></ul>
+        </div>
+        <div class="message" id="message"></div>
+    </div>
+    <script>
+        async function majSolde() {
+            const res = await fetch('/api/distributeur/solde');
+            const solde = await res.json();
+            document.getElementById('solde').innerText = `Solde : ${solde.toFixed(2)} MAD`;
+        }
+        async function majProduits() {
+            const res = await fetch('/api/distributeur/produits');
+            const produits = await res.json();
+            const soldeRes = await fetch('/api/distributeur/solde');
+            const solde = await soldeRes.json();
+            let html = '';
+            produits.forEach(p => {
+                html += `<div class='produit'>
+                    <span>${p.nom} (${p.prix} MAD) ${p.quantite > 0 ? '' : '<b style=\"color:#e53935\">(Rupture)</b>'}</span>
+                    <button onclick="acheterProduit('${p.id}', ${p.prix})" ${p.quantite === 0 || solde < p.prix ? 'disabled' : ''}>Acheter</button>
+                </div>`;
+            });
+            document.getElementById('produits').innerHTML = html;
+        }
+        async function majPanier() {
+            const res = await fetch('/api/distributeur/panier');
+            const panier = await res.json();
+            let html = '';
+            panier.produits.forEach(p => {
+                html += `<li>${p.nom} - ${p.prix} MAD</li>`;
+            });
+            document.getElementById('panier-list').innerHTML = html;
+        }
+        async function insererPiece(valeur) {
+            const res = await fetch(`/api/distributeur/pieces?valeur=${valeur}`, {method: 'POST'});
+            const ok = await res.json();
+            if(ok) setMessage(`Pièce de ${valeur} MAD insérée.`);
+            else setMessage('Pièce refusée !');
+            await majSolde();
+            await majProduits();
+        }
+        async function acheterProduit(id, prix) {
+            const res = await fetch(`/api/distributeur/produits/${id}`, {method: 'POST'});
+            const ok = await res.json();
+            if(ok) setMessage('Produit ajouté au panier !');
+            else setMessage('Solde insuffisant ou produit indisponible.');
+            await majSolde();
+            await majProduits();
+            await majPanier();
+        }
+        async function rendreMonnaie() {
+            const res = await fetch('/api/distributeur/monnaie', {method: 'POST'});
+            const pieces = await res.json();
+            if(pieces.length === 0) setMessage('Aucune monnaie à rendre.');
+            else {
+                let txt = 'Monnaie rendue : ' + pieces.map(p => p.valeur + ' MAD').join(', ');
+                setMessage(txt);
+            }
+            await majSolde();
+            await majProduits();
+            await majPanier();
+        }
+        async function annulerTransaction() {
+            await fetch('/api/distributeur/annuler', {method: 'POST'});
+            setMessage('Transaction annulée.');
+            await majSolde();
+            await majProduits();
+            await majPanier();
+        }
+        function setMessage(msg) {
+            document.getElementById('message').innerText = msg;
+        }
+        // Initialisation
+        majSolde();
+        majProduits();
+        majPanier();
+    </script>
+</body>
+</html> 
